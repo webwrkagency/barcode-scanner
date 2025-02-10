@@ -14,6 +14,11 @@ export interface BarcodeScannerPlugin {
     disableTorch(): Promise<void>;
     toggleTorch(): Promise<void>;
     getTorchState(): Promise<TorchStateResult>;
+    takePhoto(): Promise<{
+        base64: string;
+        width: number;
+        height: number;
+    }>;
 }
 declare const _SupportedFormat: {
     /**
@@ -105,12 +110,12 @@ export declare const SupportedFormat: {
      */
     readonly RSS_EXPANDED: "RSS_EXPANDED";
 };
-export type SupportedFormat = typeof _SupportedFormat[keyof typeof _SupportedFormat];
+export type SupportedFormat = (typeof _SupportedFormat)[keyof typeof _SupportedFormat];
 export declare const CameraDirection: {
     readonly FRONT: "front";
     readonly BACK: "back";
 };
-export type CameraDirection = typeof CameraDirection[keyof typeof CameraDirection];
+export type CameraDirection = (typeof CameraDirection)[keyof typeof CameraDirection];
 export interface ScanOptions {
     /**
      * This parameter can be used to make the scanner only recognize specific types of barcodes.

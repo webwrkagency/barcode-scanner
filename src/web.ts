@@ -53,7 +53,8 @@ export class BarcodeScannerWeb extends WebPlugin implements BarcodeScannerPlugin
       }
     });
     if (!!_options?.cameraDirection) {
-      this._facingMode = _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
+      this._facingMode =
+        _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
     }
     const video = await this._getVideoElement();
     if (video) {
@@ -147,6 +148,10 @@ export class BarcodeScannerWeb extends WebPlugin implements BarcodeScannerPlugin
 
   async getTorchState(): Promise<TorchStateResult> {
     return { isEnabled: this._torchState };
+  }
+
+  async takePhoto(): Promise<{ base64: string; width: number; height: number }> {
+    throw new Error('takePhoto is not implemented on web');
   }
 
   private async _getVideoElement() {

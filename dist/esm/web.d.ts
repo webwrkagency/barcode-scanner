@@ -24,6 +24,11 @@ export declare class BarcodeScannerWeb extends WebPlugin implements BarcodeScann
     enableTorch(): Promise<void>;
     toggleTorch(): Promise<void>;
     getTorchState(): Promise<TorchStateResult>;
+    takePhoto(): Promise<{
+        base64: string;
+        width: number;
+        height: number;
+    }>;
     private _getVideoElement;
     private _getFirstResultFromReader;
     private _startVideo;

@@ -103,7 +103,8 @@ class BarcodeScannerWeb extends core.WebPlugin {
             }
         });
         if (!!(_options === null || _options === void 0 ? void 0 : _options.cameraDirection)) {
-            this._facingMode = _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
+            this._facingMode =
+                _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
         }
         const video = await this._getVideoElement();
         if (video) {
@@ -188,6 +189,9 @@ class BarcodeScannerWeb extends core.WebPlugin {
     }
     async getTorchState() {
         return { isEnabled: this._torchState };
+    }
+    async takePhoto() {
+        throw new Error('takePhoto is not implemented on web');
     }
     async _getVideoElement() {
         if (!this._video) {

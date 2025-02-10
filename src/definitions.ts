@@ -14,6 +14,11 @@ export interface BarcodeScannerPlugin {
   disableTorch(): Promise<void>;
   toggleTorch(): Promise<void>;
   getTorchState(): Promise<TorchStateResult>;
+  takePhoto(): Promise<{
+    base64: string; // Base64 encoded photo data
+    width: number; // Width of the photo
+    height: number; // Height of the photo
+  }>;
 }
 
 const _SupportedFormat = {
@@ -89,14 +94,14 @@ const _SupportedFormat = {
 export const SupportedFormat = _SupportedFormat satisfies {
   [k in SupportedFormat]: k;
 };
-export type SupportedFormat = typeof _SupportedFormat[keyof typeof _SupportedFormat];
+export type SupportedFormat = (typeof _SupportedFormat)[keyof typeof _SupportedFormat];
 
 export const CameraDirection = {
   FRONT: 'front',
   BACK: 'back',
 } as const;
 
-export type CameraDirection = typeof CameraDirection[keyof typeof CameraDirection];
+export type CameraDirection = (typeof CameraDirection)[keyof typeof CameraDirection];
 
 export interface ScanOptions {
   /**

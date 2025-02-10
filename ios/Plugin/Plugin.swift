@@ -56,6 +56,7 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
     var captureSession:AVCaptureSession?
     var captureVideoPreviewLayer:AVCaptureVideoPreviewLayer?
     var metaOutput: AVCaptureMetadataOutput?
+    var photoOutput: AVCapturePhotoOutput?
 
     var currentCamera: Int = 0
     var frontCamera: AVCaptureDevice?
@@ -168,6 +169,13 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
             input = try self.createCaptureDeviceInput(cameraDirection: cameraDir)
             captureSession = AVCaptureSession()
             captureSession!.addInput(input)
+            
+            // Initialize and add photo output
+            photoOutput = AVCapturePhotoOutput()
+            if captureSession!.canAddOutput(photoOutput!) {
+                captureSession!.addOutput(photoOutput!)
+            }
+            
             metaOutput = AVCaptureMetadataOutput()
             captureSession!.addOutput(metaOutput!)
             metaOutput!.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
@@ -175,6 +183,7 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
             cameraView.addPreviewLayer(captureVideoPreviewLayer)
             self.didRunCameraSetup = true
             return true
+            
         } catch CaptureError.backCameraUnavailable {
             //
         } catch CaptureError.frontCameraUnavailable {
@@ -587,4 +596,54 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
         call.resolve(result)
     }
 
+    @objc func takePhoto(_ call: CAPPluginCall) {
+        guard let photoOutput = self.photoOutput else {
+            call.reject("Camera not properly configured for photo capture")
+            return
+        }
+        
+        DispatchQueue.main.async {
+            let photoSettings = AVCapturePhotoSettings()
+            photoSettings.flashMode = .auto
+            
+            photoOutput.capturePhoto(with: photoSettings, delegate: PhotoCaptureDelegate(call: call))
+        }
+    }
+}
+
+// Photo capture delegate to handle the captured photo
+class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
+    private let call: CAPPluginCall
+    
+    init(call: CAPPluginCall) {
+        self.call = call
+    }
+    
+    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error = error {
+            call.reject("Failed to capture photo: \(error.localizedDescription)")
+            return
+        }
+        
+        guard let imageData = photo.fileDataRepresentation() else {
+            call.reject("Could not get image data")
+            return
+        }
+        
+        // Convert to base64
+        let base64String = imageData.base64EncodedString()
+        
+        // Get image dimensions
+        if let image = UIImage(data: imageData) {
+            let result: [String: Any] = [
+                "base64": base64String,
+                "width": Int(image.size.width),
+                "height": Int(image.size.height)
+            ]
+            
+            call.resolve(result)
+        } else {
+            call.reject("Could not process captured image")
+        }
+    }
 }
