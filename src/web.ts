@@ -12,6 +12,7 @@ import {
   TorchStateResult,
   CameraDirection,
   IScanResultWithContent,
+  CapturePhotoResult,
 } from './definitions';
 
 export class BarcodeScannerWeb extends WebPlugin implements BarcodeScannerPlugin {
@@ -53,7 +54,8 @@ export class BarcodeScannerWeb extends WebPlugin implements BarcodeScannerPlugin
       }
     });
     if (!!_options?.cameraDirection) {
-      this._facingMode = _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
+      this._facingMode =
+        _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
     }
     const video = await this._getVideoElement();
     if (video) {
@@ -147,6 +149,30 @@ export class BarcodeScannerWeb extends WebPlugin implements BarcodeScannerPlugin
 
   async getTorchState(): Promise<TorchStateResult> {
     return { isEnabled: this._torchState };
+  }
+
+  async capturePhoto(): Promise<CapturePhotoResult> {
+    const video = await this._getVideoElement();
+    if (!video) {
+      throw this.unavailable('No video element available');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw this.unavailable('Could not create canvas context');
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    const base64Photo = dataUrl.split(',')[1];
+
+    return {
+      base64Photo,
+    };
   }
 
   private async _getVideoElement() {

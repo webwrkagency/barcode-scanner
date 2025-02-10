@@ -1,5 +1,5 @@
 import { WebPlugin } from '@capacitor/core';
-import { BarcodeScannerPlugin, ScanOptions, ScanResult, CheckPermissionOptions, CheckPermissionResult, StopScanOptions, TorchStateResult } from './definitions';
+import { BarcodeScannerPlugin, ScanOptions, ScanResult, CheckPermissionOptions, CheckPermissionResult, StopScanOptions, TorchStateResult, CapturePhotoResult } from './definitions';
 export declare class BarcodeScannerWeb extends WebPlugin implements BarcodeScannerPlugin {
     private static _FORWARD;
     private static _BACK;
@@ -24,6 +24,7 @@ export declare class BarcodeScannerWeb extends WebPlugin implements BarcodeScann
     enableTorch(): Promise<void>;
     toggleTorch(): Promise<void>;
     getTorchState(): Promise<TorchStateResult>;
+    capturePhoto(): Promise<CapturePhotoResult>;
     private _getVideoElement;
     private _getFirstResultFromReader;
     private _startVideo;

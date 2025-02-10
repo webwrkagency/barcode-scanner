@@ -3,7 +3,7 @@ import Foundation
 import AVFoundation
 
 @objc(BarcodeScanner)
-public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
+public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, AVCapturePhotoCaptureDelegate {
 
     class CameraView: UIView {
         var videoPreviewLayer:AVCaptureVideoPreviewLayer?
@@ -71,6 +71,8 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
     var savedCall: CAPPluginCall? = nil
     var scanningPaused: Bool = false
     var lastScanResult: String? = nil
+    var photoCaptureSession: AVCaptureSession?
+    var photoOutput: AVCapturePhotoOutput?
 
     enum SupportedFormat: String, CaseIterable {
         // 1D Product
@@ -587,4 +589,77 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate {
         call.resolve(result)
     }
 
+    @objc func capturePhoto(_ call: CAPPluginCall) {
+        savedCall = call
+        
+        guard hasCameraPermission() else {
+            call.reject("Camera permission required")
+            return
+        }
+        
+        DispatchQueue.main.async {
+            do {
+                // 1. Setup capture session
+                self.photoCaptureSession = AVCaptureSession()
+                
+                // 2. Get camera device
+                guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                    call.reject("Camera unavailable")
+                    return
+                }
+                
+                // 3. Create input
+                let input = try AVCaptureDeviceInput(device: camera)
+                guard self.photoCaptureSession!.canAddInput(input) else {
+                    call.reject("Cannot add input")
+                    return
+                }
+                self.photoCaptureSession!.addInput(input)
+                
+                // 4. Create output
+                self.photoOutput = AVCapturePhotoOutput()
+                guard self.photoCaptureSession!.canAddOutput(self.photoOutput!) else {
+                    call.reject("Cannot add output")
+                    return
+                }
+                self.photoCaptureSession!.addOutput(self.photoOutput!)
+                
+                // 5. Start session
+                self.photoCaptureSession!.startRunning()
+                
+                // 6. Capture photo
+                let settings = AVCapturePhotoSettings()
+                self.photoOutput!.capturePhoto(with: settings, delegate: self)
+                
+            } catch {
+                call.reject("Camera setup error: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error = error {
+            savedCall?.reject("Capture failed: \(error.localizedDescription)")
+            cleanupPhotoCapture()
+            return
+        }
+        
+        guard let imageData = photo.fileDataRepresentation() else {
+            savedCall?.reject("Failed to get image data")
+            cleanupPhotoCapture()
+            return
+        }
+        
+        // Convert to base64 string
+        let base64String = imageData.base64EncodedString()
+        savedCall?.resolve(["base64Photo": base64String])
+        
+        cleanupPhotoCapture()
+    }
+    
+    private func cleanupPhotoCapture() {
+        photoCaptureSession?.stopRunning()
+        photoCaptureSession = nil
+        photoOutput = nil
+    }
 }

@@ -100,7 +100,8 @@ var capacitorExample = (function (exports, core, browser, library) {
                 }
             });
             if (!!(_options === null || _options === void 0 ? void 0 : _options.cameraDirection)) {
-                this._facingMode = _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
+                this._facingMode =
+                    _options.cameraDirection === CameraDirection.BACK ? BarcodeScannerWeb._BACK : BarcodeScannerWeb._FORWARD;
             }
             const video = await this._getVideoElement();
             if (video) {
@@ -185,6 +186,25 @@ var capacitorExample = (function (exports, core, browser, library) {
         }
         async getTorchState() {
             return { isEnabled: this._torchState };
+        }
+        async capturePhoto() {
+            const video = await this._getVideoElement();
+            if (!video) {
+                throw this.unavailable('No video element available');
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            if (!context) {
+                throw this.unavailable('Could not create canvas context');
+            }
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg');
+            const base64Photo = dataUrl.split(',')[1];
+            return {
+                base64Photo,
+            };
         }
         async _getVideoElement() {
             if (!this._video) {

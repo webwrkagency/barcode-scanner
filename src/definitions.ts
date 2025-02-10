@@ -14,6 +14,7 @@ export interface BarcodeScannerPlugin {
   disableTorch(): Promise<void>;
   toggleTorch(): Promise<void>;
   getTorchState(): Promise<TorchStateResult>;
+  capturePhoto(): Promise<CapturePhotoResult>;
 }
 
 const _SupportedFormat = {
@@ -89,14 +90,14 @@ const _SupportedFormat = {
 export const SupportedFormat = _SupportedFormat satisfies {
   [k in SupportedFormat]: k;
 };
-export type SupportedFormat = typeof _SupportedFormat[keyof typeof _SupportedFormat];
+export type SupportedFormat = (typeof _SupportedFormat)[keyof typeof _SupportedFormat];
 
 export const CameraDirection = {
   FRONT: 'front',
   BACK: 'back',
 } as const;
 
-export type CameraDirection = typeof CameraDirection[keyof typeof CameraDirection];
+export type CameraDirection = (typeof CameraDirection)[keyof typeof CameraDirection];
 
 export interface ScanOptions {
   /**
@@ -241,4 +242,11 @@ export interface TorchStateResult {
    * Whether or not the torch is currently enabled.
    */
   isEnabled: boolean;
+}
+
+export interface CapturePhotoResult {
+  /**
+   * Base64 encoded string of the captured photo
+   */
+  base64Photo: string;
 }
