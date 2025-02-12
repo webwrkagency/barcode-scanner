@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "4.0.84",
+  "version": "4.0.89",
   "description": "A fast and efficient (QR) barcode scanner for Capacitor",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -32,7 +32,7 @@
     "native"
   ],
   "scripts": {
-    "docgen": "docgen --api BarcodeScannerPlugin --output-readme API_REFERENCE.md",
+    "docgen": "docgen --api BarcodeScannerPlugin --output-readme API  _REFERENCE.md",
     "lint": "npm run eslint && npm run prettier -- --check && npm run swiftlint -- lint",
     "eslint": "eslint . --ext ts",
     "prettier": "prettier \"**/*.{css,html,ts,js,java}\"",

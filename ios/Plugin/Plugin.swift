@@ -2,27 +2,27 @@ import Capacitor
 import Foundation
 import AVFoundation
 
-// MARK: - UIImage Extension voor Schalen
 extension UIImage {
     func scaled(to maxSize: CGSize) -> UIImage {
         let aspectRatio = self.size.width / self.size.height
-        var newSize = self.size
+        var newSize = CGSize(
+            width: min(self.size.width, maxSize.width),
+            height: min(self.size.height, maxSize.height)
+        )
         
-        if self.size.width > maxSize.width || self.size.height > maxSize.height {
+        if newSize.width < maxSize.width || newSize.height < maxSize.height {
             if aspectRatio > 1 {
-                newSize.width = maxSize.width
-                newSize.height = maxSize.width / aspectRatio
+                newSize = CGSize(width: maxSize.width, height: maxSize.width / aspectRatio)
             } else {
-                newSize.height = maxSize.height
-                newSize.width = maxSize.height * aspectRatio
+                newSize = CGSize(width: maxSize.height * aspectRatio, height: maxSize.height)
             }
         }
         
         let renderer = UIGraphicsImageRenderer(size: newSize)
-        let scaledImage = renderer.image { _ in
+        return renderer.image { context in
+            context.cgContext.interpolationQuality = .medium // Lagere kwaliteit voor snelheid
             self.draw(in: CGRect(origin: .zero, size: newSize))
         }
-        return scaledImage
     }
 }
 
@@ -555,14 +555,17 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
         call.resolve(result)
     }
 
-    // MARK: - Foto-opname
-
-    // Nieuwe compressImageData functie met schalen
-    private func compressImageData(_ data: Data, quality: CGFloat) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
-        let maxSize = CGSize(width: 393, height: 393) // Pas de grootte aan indien nodig
-        let scaledImage = image.scaled(to: maxSize)
-        return scaledImage.jpegData(compressionQuality: quality)
+    private func compressImageData(_ data: Data) -> Data? {
+        return autoreleasepool { // Geheugenmanagement optimalisatie
+            guard let image = UIImage(data: data) else { return nil }
+            
+            // Kleinere maximale grootte
+            let maxSize = CGSize(width: 393, height: 393)
+            let scaledImage = image.scaled(to: maxSize)
+            
+            // Snellere compressie met lagere kwaliteit
+            return scaledImage.jpegData(compressionQuality: 0.4)
+        }
     }
 
     @objc func capturePhoto(_ call: CAPPluginCall) {
@@ -576,73 +579,67 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            // Initialiseer de foto-sessie éénmalig
             if self.photoCaptureSession == nil {
                 self.photoCaptureSession = AVCaptureSession()
-                self.photoCaptureSession?.sessionPreset = .medium // Lagere resolutie
+                self.photoCaptureSession?.sessionPreset = .vga640x480
                 
                 do {
-                    guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                    guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, 
+                        for: .video, position: .back) else {
                         call.reject("Camera unavailable")
                         return
                     }
                     
                     let input = try AVCaptureDeviceInput(device: camera)
-                    guard self.photoCaptureSession!.canAddInput(input) else {
-                        call.reject("Cannot add input")
-                        return
-                    }
-                    self.photoCaptureSession!.addInput(input)
+                    self.photoCaptureSession?.addInput(input)
                     
                     self.photoOutput = AVCapturePhotoOutput()
                     guard self.photoCaptureSession!.canAddOutput(self.photoOutput!) else {
                         call.reject("Cannot add output")
                         return
                     }
-                    self.photoCaptureSession!.addOutput(self.photoOutput!)
+                    self.photoCaptureSession?.addOutput(self.photoOutput!)
+                    
+                    let previewLayer = AVCaptureVideoPreviewLayer(session: self.photoCaptureSession!)
+                    previewLayer.videoGravity = .resizeAspectFill
+                    DispatchQueue.main.async {
+                        self.cameraView.layer.addSublayer(previewLayer)
+                    }
+                    
                 } catch {
                     call.reject("Camera setup error: \(error.localizedDescription)")
                     return
                 }
             }
             
-            if !self.photoCaptureSession!.isRunning {
-                self.photoCaptureSession!.startRunning()
-            }
+            self.photoCaptureSession?.startRunning()
             
+            // Directe property assignments
             let settings = AVCapturePhotoSettings()
             settings.isHighResolutionPhotoEnabled = false
             settings.isAutoStillImageStabilizationEnabled = true
+            settings.flashMode = AVCaptureDevice.FlashMode.off // Volledig gekwalificeerd pad
             
             self.photoOutput?.capturePhoto(with: settings, delegate: self)
         }
     }
 
-    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        if let error = error {
-            savedCall?.reject("Capture failed: \(error.localizedDescription)")
-            cleanupPhotoCapture()
-            return
-        }
+    public func photoOutput(_ output: AVCapturePhotoOutput, 
+        didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         
-        guard let imageData = photo.fileDataRepresentation() else {
-            savedCall?.reject("Failed to get image data")
-            cleanupPhotoCapture()
+        guard error == nil, let imageData = photo.fileDataRepresentation() else {
+            self.cleanupPhotoCapture()
             return
         }
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
-            guard let compressedImageData = self.compressImageData(imageData, quality: 0.1) else {
-                DispatchQueue.main.async {
-                    self.savedCall?.reject("Failed to compress image")
-                    self.cleanupPhotoCapture()
-                }
+            guard let self = self,
+                let compressedData = self.compressImageData(imageData) else {
                 return
             }
             
-            let base64String = compressedImageData.base64EncodedString()
+            // Directe base64 conversie zonder tussenstappen
+            let base64String = compressedData.base64EncodedString()
             
             DispatchQueue.main.async {
                 self.savedCall?.resolve(["base64Photo": base64String])
