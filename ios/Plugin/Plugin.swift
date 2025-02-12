@@ -597,40 +597,50 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
             return
         }
         
-        DispatchQueue.main.async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
             do {
-                // 1. Setup capture session
-                self.photoCaptureSession = AVCaptureSession()
-                
-                // 2. Get camera device
-                guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-                    call.reject("Camera unavailable")
-                    return
+                // 1. Hergebruik de bestaande capture sessie indien mogelijk
+                if self.captureSession == nil {
+                    self.captureSession = AVCaptureSession()
+                    self.captureSession?.sessionPreset = .photo
+                    
+                    // Voeg input toe aan de sessie
+                    guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                        call.reject("Camera unavailable")
+                        return
+                    }
+                    
+                    let input = try AVCaptureDeviceInput(device: camera)
+                    guard self.captureSession!.canAddInput(input) else {
+                        call.reject("Cannot add input")
+                        return
+                    }
+                    self.captureSession!.addInput(input)
                 }
                 
-                // 3. Create input
-                let input = try AVCaptureDeviceInput(device: camera)
-                guard self.photoCaptureSession!.canAddInput(input) else {
-                    call.reject("Cannot add input")
-                    return
+                // 2. Voeg output toe aan de sessie
+                if self.photoOutput == nil {
+                    self.photoOutput = AVCapturePhotoOutput()
+                    guard self.captureSession!.canAddOutput(self.photoOutput!) else {
+                        call.reject("Cannot add output")
+                        return
+                    }
+                    self.captureSession!.addOutput(self.photoOutput!)
                 }
-                self.photoCaptureSession!.addInput(input)
                 
-                // 4. Create output
-                self.photoOutput = AVCapturePhotoOutput()
-                guard self.photoCaptureSession!.canAddOutput(self.photoOutput!) else {
-                    call.reject("Cannot add output")
-                    return
+                // 3. Start de sessie als deze nog niet actief is
+                if !self.captureSession!.isRunning {
+                    self.captureSession!.startRunning()
                 }
-                self.photoCaptureSession!.addOutput(self.photoOutput!)
                 
-                // 5. Start session
-                self.photoCaptureSession!.startRunning()
-                
-                // 6. Capture photo
+                // 4. Capture de foto met compressie-instellingen
                 let settings = AVCapturePhotoSettings()
-                self.photoOutput!.capturePhoto(with: settings, delegate: self)
+                settings.isHighResolutionPhotoEnabled = false // Schakel hoge resolutie uit voor snellere verwerking
+                settings.isAutoStillImageStabilizationEnabled = true
                 
+                self.photoOutput!.capturePhoto(with: settings, delegate: self)
             } catch {
                 call.reject("Camera setup error: \(error.localizedDescription)")
             }
@@ -650,16 +660,35 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
             return
         }
         
-        // Convert to base64 string
-        let base64String = imageData.base64EncodedString()
-        savedCall?.resolve(["base64Photo": base64String])
+        // Comprimeer de afbeelding voordat deze wordt geconverteerd naar base64
+        guard let compressedImageData = compressImageData(imageData, quality: 0.7) else {
+            savedCall?.reject("Failed to compress image")
+            cleanupPhotoCapture()
+            return
+        }
         
-        cleanupPhotoCapture()
+        // Converteer de gecomprimeerde afbeelding naar base64
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let base64String = compressedImageData.base64EncodedString()
+            DispatchQueue.main.async {
+                self.savedCall?.resolve(["base64Photo": base64String])
+                self.cleanupPhotoCapture()
+            }
+        }
     }
     
+    private func compressImageData(_ data: Data, quality: CGFloat) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        return image.jpegData(compressionQuality: quality)
+    }
+
     private func cleanupPhotoCapture() {
-        photoCaptureSession?.stopRunning()
-        photoCaptureSession = nil
-        photoOutput = nil
+        // Stop de sessie alleen als deze niet meer nodig is
+        if self.photoCaptureSession != nil && self.captureSession == nil {
+            self.photoCaptureSession?.stopRunning()
+        }
+        self.photoCaptureSession = nil
+        self.photoOutput = nil
     }
 }
