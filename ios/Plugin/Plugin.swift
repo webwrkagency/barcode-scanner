@@ -2,24 +2,48 @@ import Capacitor
 import Foundation
 import AVFoundation
 
+// MARK: - UIImage Extension voor Schalen
+extension UIImage {
+    func scaled(to maxSize: CGSize) -> UIImage {
+        let aspectRatio = self.size.width / self.size.height
+        var newSize = self.size
+        
+        if self.size.width > maxSize.width || self.size.height > maxSize.height {
+            if aspectRatio > 1 {
+                newSize.width = maxSize.width
+                newSize.height = maxSize.width / aspectRatio
+            } else {
+                newSize.height = maxSize.height
+                newSize.width = maxSize.height * aspectRatio
+            }
+        }
+        
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let scaledImage = renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return scaledImage
+    }
+}
+
 @objc(BarcodeScanner)
 public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, AVCapturePhotoCaptureDelegate {
 
     class CameraView: UIView {
-        var videoPreviewLayer:AVCaptureVideoPreviewLayer?
+        var videoPreviewLayer: AVCaptureVideoPreviewLayer?
 
-        func interfaceOrientationToVideoOrientation(_ orientation : UIInterfaceOrientation) -> AVCaptureVideoOrientation {
-            switch (orientation) {
-            case UIInterfaceOrientation.portrait:
-                return AVCaptureVideoOrientation.portrait
-            case UIInterfaceOrientation.portraitUpsideDown:
-                return AVCaptureVideoOrientation.portraitUpsideDown
-            case UIInterfaceOrientation.landscapeLeft:
-                return AVCaptureVideoOrientation.landscapeLeft
-            case UIInterfaceOrientation.landscapeRight:
-                return AVCaptureVideoOrientation.landscapeRight
+        func interfaceOrientationToVideoOrientation(_ orientation: UIInterfaceOrientation) -> AVCaptureVideoOrientation {
+            switch orientation {
+            case .portrait:
+                return .portrait
+            case .portraitUpsideDown:
+                return .portraitUpsideDown
+            case .landscapeLeft:
+                return .landscapeLeft
+            case .landscapeRight:
+                return .landscapeRight
             default:
-                return AVCaptureVideoOrientation.portraitUpsideDown
+                return .portraitUpsideDown
             }
         }
 
@@ -36,9 +60,8 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
             }
         }
 
-
-        func addPreviewLayer(_ previewLayer:AVCaptureVideoPreviewLayer?) {
-            previewLayer!.videoGravity = AVLayerVideoGravity.resizeAspectFill
+        func addPreviewLayer(_ previewLayer: AVCaptureVideoPreviewLayer?) {
+            previewLayer!.videoGravity = .resizeAspectFill
             previewLayer!.frame = self.bounds
             self.layer.addSublayer(previewLayer!)
             self.videoPreviewLayer = previewLayer
@@ -53,8 +76,8 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     }
 
     var cameraView: CameraView!
-    var captureSession:AVCaptureSession?
-    var captureVideoPreviewLayer:AVCaptureVideoPreviewLayer?
+    var captureSession: AVCaptureSession?
+    var captureVideoPreviewLayer: AVCaptureVideoPreviewLayer?
     var metaOutput: AVCaptureMetadataOutput?
 
     var currentCamera: Int = 0
@@ -71,14 +94,16 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     var savedCall: CAPPluginCall? = nil
     var scanningPaused: Bool = false
     var lastScanResult: String? = nil
+
+    // Voor foto-opname
     var photoCaptureSession: AVCaptureSession?
     var photoOutput: AVCapturePhotoOutput?
 
     enum SupportedFormat: String, CaseIterable {
         // 1D Product
-        //!\ UPC_A is part of EAN_13 according to Apple docs
+        //!\ UPC_A is onderdeel van EAN_13 volgens Apple docs
         case UPC_E
-        //!\ UPC_EAN_EXTENSION is not supported by AVFoundation
+        //!\ UPC_EAN_EXTENSION wordt niet ondersteund door AVFoundation
         case EAN_8
         case EAN_13
         // 1D Industrial
@@ -86,36 +111,32 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
         case CODE_39_MOD_43
         case CODE_93
         case CODE_128
-        //!\ CODABAR is not supported by AVFoundation
+        //!\ CODABAR wordt niet ondersteund door AVFoundation
         case ITF
         case ITF_14
         // 2D
         case AZTEC
         case DATA_MATRIX
-        //!\ MAXICODE is not supported by AVFoundation
+        //!\ MAXICODE wordt niet ondersteund door AVFoundation
         case PDF_417
         case QR_CODE
-        //!\ RSS_14 is not supported by AVFoundation
-        //!\ RSS_EXPANDED is not supported by AVFoundation
+        //!\ RSS_14 en RSS_EXPANDED worden niet ondersteund door AVFoundation
 
         var value: AVMetadataObject.ObjectType {
             switch self {
-                // 1D Product
-                case .UPC_E: return AVMetadataObject.ObjectType.upce
-                case .EAN_8: return AVMetadataObject.ObjectType.ean8
-                case .EAN_13: return AVMetadataObject.ObjectType.ean13
-                // 1D Industrial
-                case .CODE_39: return AVMetadataObject.ObjectType.code39
-                case .CODE_39_MOD_43: return AVMetadataObject.ObjectType.code39Mod43
-                case .CODE_93: return AVMetadataObject.ObjectType.code93
-                case .CODE_128: return AVMetadataObject.ObjectType.code128
-                case .ITF: return AVMetadataObject.ObjectType.interleaved2of5
-                case .ITF_14: return AVMetadataObject.ObjectType.itf14
-                // 2D
-                case .AZTEC: return AVMetadataObject.ObjectType.aztec
-                case .DATA_MATRIX: return AVMetadataObject.ObjectType.dataMatrix
-                case .PDF_417: return AVMetadataObject.ObjectType.pdf417
-                case .QR_CODE: return AVMetadataObject.ObjectType.qr
+            case .UPC_E: return .upce
+            case .EAN_8: return .ean8
+            case .EAN_13: return .ean13
+            case .CODE_39: return .code39
+            case .CODE_39_MOD_43: return .code39Mod43
+            case .CODE_93: return .code93
+            case .CODE_128: return .code128
+            case .ITF: return .interleaved2of5
+            case .ITF_14: return .itf14
+            case .AZTEC: return .aztec
+            case .DATA_MATRIX: return .dataMatrix
+            case .PDF_417: return .pdf417
+            case .QR_CODE: return .qr
             }
         }
     }
@@ -135,10 +156,7 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
 
     private func hasCameraPermission() -> Bool {
         let status = AVCaptureDevice.authorizationStatus(for: AVMediaType.video)
-        if (status == AVAuthorizationStatus.authorized) {
-            return true
-        }
-        return false
+        return status == .authorized
     }
 
     private func setupCamera(cameraDirection: String? = "back") -> Bool {
@@ -147,22 +165,21 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
             cameraView.backgroundColor = UIColor.clear
             self.webView!.superview!.insertSubview(cameraView, belowSubview: self.webView!)
             
-            let availableVideoDevices =  discoverCaptureDevices()
+            let availableVideoDevices = discoverCaptureDevices()
             for device in availableVideoDevices {
-                if device.position == AVCaptureDevice.Position.back {
+                if device.position == .back {
                     backCamera = device
-                }
-                else if device.position == AVCaptureDevice.Position.front {
+                } else if device.position == .front {
                     frontCamera = device
                 }
             }
-            // older iPods have no back camera
-            if (cameraDir == "back") {
-                if (backCamera == nil) {
+            // Oudere iPods hebben geen backcamera
+            if cameraDir == "back" {
+                if backCamera == nil {
                     cameraDir = "front"
                 }
             } else {
-                if (frontCamera == nil) {
+                if frontCamera == nil {
                     cameraDir = "back"
                 }
             }
@@ -178,13 +195,13 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
             self.didRunCameraSetup = true
             return true
         } catch CaptureError.backCameraUnavailable {
-            //
+            // Foutafhandeling
         } catch CaptureError.frontCameraUnavailable {
-            //
+            // Foutafhandeling
         } catch CaptureError.couldNotCaptureInput {
-            //
+            // Foutafhandeling
         } catch {
-            //
+            // Foutafhandeling
         }
         return false
     }
@@ -200,34 +217,29 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
 
     private func createCaptureDeviceInput(cameraDirection: String? = "back") throws -> AVCaptureDeviceInput {
         var captureDevice: AVCaptureDevice
-        if(cameraDirection == "back"){
-            if(backCamera != nil){
-                captureDevice = backCamera!
+        if cameraDirection == "back" {
+            if let backCam = backCamera {
+                captureDevice = backCam
             } else {
                 throw CaptureError.backCameraUnavailable
             }
         } else {
-            if(frontCamera != nil){
-                captureDevice = frontCamera!
+            if let frontCam = frontCamera {
+                captureDevice = frontCam
             } else {
                 throw CaptureError.frontCameraUnavailable
             }
         }
-        let captureDeviceInput: AVCaptureDeviceInput
         do {
-            captureDeviceInput = try AVCaptureDeviceInput(device: captureDevice)
+            return try AVCaptureDeviceInput(device: captureDevice)
         } catch let error as NSError {
             throw CaptureError.couldNotCaptureInput(error: error)
         }
-        return captureDeviceInput
     }
 
     private func dismantleCamera() {
-        // opposite of setupCamera
-
-        
         DispatchQueue.main.async {
-            if (self.captureSession != nil) {
+            if self.captureSession != nil {
                 self.captureSession!.stopRunning()
                 self.cameraView.removePreviewLayer()
                 self.captureVideoPreviewLayer = nil
@@ -237,29 +249,23 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
                 self.backCamera = nil
             }
         }
-
         self.isScanning = false
         self.didRunCameraSetup = false
         self.didRunCameraPrepare = false
 
-        // If a call is saved and a scan will not run, free the saved call
-        if (self.savedCall != nil && !self.shouldRunScan) {
+        if self.savedCall != nil && !self.shouldRunScan {
             self.savedCall = nil
         }
     }
 
     private func prepare(_ call: CAPPluginCall? = nil) {
-        // undo previous setup
-        // because it may be prepared with a different config
         self.dismantleCamera()
-
+        
         DispatchQueue.main.async {
-            // setup camera with new config
-            if (self.setupCamera(cameraDirection: call?.getString("cameraDirection") ?? "back")) {
-                // indicate this method was run
+            if self.setupCamera(cameraDirection: call?.getString("cameraDirection") ?? "back") {
                 self.didRunCameraPrepare = true
-
-                if (self.shouldRunScan) {
+                
+                if self.shouldRunScan {
                     self.scan()
                 }
             } else {
@@ -270,62 +276,51 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
 
     private func destroy() {
         self.showBackground()
-
         self.dismantleCamera()
     }
 
     private func scan() {
-        if (!self.didRunCameraPrepare) {
-            //In iOS 14 don't identify permissions needed, so force to ask it's better than nothing. Provisional.
-            var iOS14min: Bool = false
-            if #available(iOS 14.0, *) { iOS14min = true; }
-            if (!self.hasCameraPermission() && !iOS14min) {
-                // @TODO()
-                // requestPermission()
+        if !self.didRunCameraPrepare {
+            var iOS14min = false
+            if #available(iOS 14.0, *) { iOS14min = true }
+            if !self.hasCameraPermission() && !iOS14min {
+                // @TODO: Vraag permissie aan
             } else {
                 DispatchQueue.main.async {
-                    self.load();
+                    self.load()
                     self.shouldRunScan = true
                     self.prepare(self.savedCall)
-                } 
+                }
             }
         } else {
             self.didRunCameraPrepare = false
-
             self.shouldRunScan = false
-
-            targetedFormats = [AVMetadataObject.ObjectType]();
-
-            if ((savedCall?.options["targetedFormats"]) != nil) {
-                let _targetedFormats = savedCall?.getArray("targetedFormats", String.self)
-
-                if (_targetedFormats != nil && _targetedFormats?.count ?? 0 > 0) {
-                    _targetedFormats?.forEach { targetedFormat in
-                        if let value = SupportedFormat(rawValue: targetedFormat)?.value {
-                            print(value)
-                            targetedFormats.append(value)
-                        }
+            targetedFormats = []
+            
+            if let _targetedFormats = savedCall?.getArray("targetedFormats", String.self), !_targetedFormats.isEmpty {
+                _targetedFormats.forEach { targetedFormat in
+                    if let value = SupportedFormat(rawValue: targetedFormat)?.value {
+                        print(value)
+                        targetedFormats.append(value)
                     }
                 }
-
-                if (targetedFormats.count == 0) {
+                if targetedFormats.isEmpty {
                     print("The property targetedFormats was not set correctly.")
                 }
             }
-
-            if (targetedFormats.count == 0) {
+            
+            if targetedFormats.isEmpty {
                 for supportedFormat in SupportedFormat.allCases {
                     targetedFormats.append(supportedFormat.value)
                 }
             }
-
+            
             DispatchQueue.main.async {
                 self.metaOutput!.metadataObjectTypes = self.targetedFormats
                 self.captureSession!.startRunning()
             }
-
+            
             self.hideBackground()
-
             self.isScanning = true
         }
     }
@@ -333,13 +328,10 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     private func hideBackground() {
         DispatchQueue.main.async {
             self.previousBackgroundColor = self.bridge?.webView!.backgroundColor
-
             self.bridge?.webView!.isOpaque = false
             self.bridge?.webView!.backgroundColor = UIColor.clear
             self.bridge?.webView!.scrollView.backgroundColor = UIColor.clear
-
             let javascript = "document.documentElement.style.backgroundColor = 'transparent'"
-
             self.bridge?.webView!.evaluateJavaScript(javascript)
         }
     }
@@ -347,8 +339,7 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     private func showBackground() {
         DispatchQueue.main.async {
             let javascript = "document.documentElement.style.backgroundColor = ''"
-
-            self.bridge?.webView!.evaluateJavaScript(javascript) { (result, error) in
+            self.bridge?.webView!.evaluateJavaScript(javascript) { (_, _) in
                 self.bridge?.webView!.isOpaque = true
                 self.bridge?.webView!.backgroundColor = self.previousBackgroundColor
                 self.bridge?.webView!.scrollView.backgroundColor = self.previousBackgroundColor
@@ -356,35 +347,32 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
         }
     }
 
-    // This method processes metadataObjects captured by iOS.
     public func metadataOutput(_ captureOutput: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-
-        if (metadataObjects.count == 0 || !self.isScanning) {
-            // while nothing is detected, or if scanning is false, do nothing.
+        if metadataObjects.isEmpty || !self.isScanning {
             return
         }
-
+        
         let found = metadataObjects[0] as! AVMetadataMachineReadableCodeObject
-        if (targetedFormats.contains(found.type)) {
+        if targetedFormats.contains(found.type) {
             var jsObject = PluginCallResultData()
-
-            if (found.stringValue != nil) {
+            
+            if let value = found.stringValue {
                 jsObject["hasContent"] = true
-                jsObject["content"] = found.stringValue
+                jsObject["content"] = value
                 jsObject["format"] = formatStringFromMetadata(found.type)
             } else {
                 jsObject["hasContent"] = false
             }
-
-            if (savedCall != nil) {
-                if (savedCall!.keepAlive) {
-                    if (!scanningPaused && found.stringValue != lastScanResult ) {
+            
+            if let savedCall = savedCall {
+                if savedCall.keepAlive {
+                    if !scanningPaused && found.stringValue != lastScanResult {
                         lastScanResult = found.stringValue
-                        savedCall!.resolve(jsObject)
+                        savedCall.resolve(jsObject)
                     }
                 } else {
-                    savedCall!.resolve(jsObject)
-                    savedCall = nil
+                    savedCall.resolve(jsObject)
+                    self.savedCall = nil
                     destroy()
                 }
             } else {
@@ -394,37 +382,37 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     }
 
     private func formatStringFromMetadata(_ type: AVMetadataObject.ObjectType) -> String {
-            switch type {
-            case AVMetadataObject.ObjectType.upce:
-                return "UPC_E"
-            case AVMetadataObject.ObjectType.ean8:
-                return "EAN_8"
-            case AVMetadataObject.ObjectType.ean13:
-                return "EAN_13"
-            case AVMetadataObject.ObjectType.code39:
-                return "CODE_39"
-            case AVMetadataObject.ObjectType.code39Mod43:
-                return "CODE_39_MOD_43"
-            case AVMetadataObject.ObjectType.code93:
-                return "CODE_93"
-            case AVMetadataObject.ObjectType.code128:
-                return "CODE_128"
-            case AVMetadataObject.ObjectType.interleaved2of5:
-                return "ITF"
-            case AVMetadataObject.ObjectType.itf14:
-                return "ITF_14"
-            case AVMetadataObject.ObjectType.aztec:
-                return "AZTEC"
-            case AVMetadataObject.ObjectType.dataMatrix:
-                return "DATA_MATRIX"
-            case AVMetadataObject.ObjectType.pdf417:
-                return "PDF_417"
-            case AVMetadataObject.ObjectType.qr:
-                return "QR_CODE"
-            default:
-                return type.rawValue
-            }
+        switch type {
+        case .upce:
+            return "UPC_E"
+        case .ean8:
+            return "EAN_8"
+        case .ean13:
+            return "EAN_13"
+        case .code39:
+            return "CODE_39"
+        case .code39Mod43:
+            return "CODE_39_MOD_43"
+        case .code93:
+            return "CODE_93"
+        case .code128:
+            return "CODE_128"
+        case .interleaved2of5:
+            return "ITF"
+        case .itf14:
+            return "ITF_14"
+        case .aztec:
+            return "AZTEC"
+        case .dataMatrix:
+            return "DATA_MATRIX"
+        case .pdf417:
+            return "PDF_417"
+        case .qr:
+            return "QR_CODE"
+        default:
+            return type.rawValue
         }
+    }
 
     @objc func prepare(_ call: CAPPluginCall) {
         self.prepare()
@@ -460,48 +448,43 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     }
 
     @objc func resumeScanning(_ call: CAPPluginCall) {
-       lastScanResult = nil
+        lastScanResult = nil
         scanningPaused = false
         call.resolve()
     }
 
     @objc func stopScan(_ call: CAPPluginCall) {
-        if ((call.getBool("resolveScan") ?? false) && self.savedCall != nil) {
+        if (call.getBool("resolveScan") ?? false) && self.savedCall != nil {
             var jsObject = PluginCallResultData()
             jsObject["hasContent"] = false
-
             savedCall?.resolve(jsObject)
             savedCall = nil
         }
-
         self.destroy()
         call.resolve()
     }
 
     @objc func checkPermission(_ call: CAPPluginCall) {
         let force = call.getBool("force") ?? false
-
         var savedReturnObject = PluginCallResultData()
-
         DispatchQueue.main.async {
             switch AVCaptureDevice.authorizationStatus(for: .video) {
-                case .authorized:
-                    savedReturnObject["granted"] = true
-                case .denied:
-                    savedReturnObject["denied"] = true
-                case .notDetermined:
-                    savedReturnObject["neverAsked"] = true
-                case .restricted:
-                    savedReturnObject["restricted"] = true
-                @unknown default:
-                    savedReturnObject["unknown"] = true
+            case .authorized:
+                savedReturnObject["granted"] = true
+            case .denied:
+                savedReturnObject["denied"] = true
+            case .notDetermined:
+                savedReturnObject["neverAsked"] = true
+            case .restricted:
+                savedReturnObject["restricted"] = true
+            @unknown default:
+                savedReturnObject["unknown"] = true
             }
-
-            if (force && savedReturnObject["neverAsked"] != nil) {
+            
+            if force && savedReturnObject["neverAsked"] != nil {
                 savedReturnObject["asked"] = true
-
-                AVCaptureDevice.requestAccess(for: .video) { (authorized) in
-                    if (authorized) {
+                AVCaptureDevice.requestAccess(for: .video) { authorized in
+                    if authorized {
                         savedReturnObject["granted"] = true
                     } else {
                         savedReturnObject["denied"] = true
@@ -515,64 +498,50 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     }
 
     @objc func openAppSettings(_ call: CAPPluginCall) {
-      guard let settingsUrl = URL(string: UIApplication.openSettingsURLString) else {
-          return
-      }
-
-      DispatchQueue.main.async {
-          if UIApplication.shared.canOpenURL(settingsUrl) {
-              UIApplication.shared.open(settingsUrl, completionHandler: { (success) in
-                  call.resolve()
-              })
-          }
-      }
+        guard let settingsUrl = URL(string: UIApplication.openSettingsURLString) else { return }
+        DispatchQueue.main.async {
+            if UIApplication.shared.canOpenURL(settingsUrl) {
+                UIApplication.shared.open(settingsUrl, completionHandler: { _ in
+                    call.resolve()
+                })
+            }
+        }
     }
 
-      @objc func enableTorch(_ call: CAPPluginCall) {
-        guard let device = AVCaptureDevice.default(for: AVMediaType.video) else { return }
-        guard device.hasTorch else { return }
-        guard device.isTorchAvailable else { return }
-
+    @objc func enableTorch(_ call: CAPPluginCall) {
+        guard let device = AVCaptureDevice.default(for: .video),
+              device.hasTorch, device.isTorchAvailable else { return }
         do {
             try device.lockForConfiguration()
-
             do {
                 try device.setTorchModeOn(level: 1.0)
             } catch {
                 print(error)
             }
-
             device.unlockForConfiguration()
         } catch {
             print(error)
         }
-
         call.resolve()
     }
 
     @objc func disableTorch(_ call: CAPPluginCall) {
-        guard let device = AVCaptureDevice.default(for: AVMediaType.video) else { return }
-        guard device.hasTorch else { return }
-        guard device.isTorchAvailable else { return }
-
+        guard let device = AVCaptureDevice.default(for: .video),
+              device.hasTorch, device.isTorchAvailable else { return }
         do {
             try device.lockForConfiguration()
             device.torchMode = .off
-
             device.unlockForConfiguration()
         } catch {
             print(error)
         }
-
         call.resolve()
     }
 
     @objc func toggleTorch(_ call: CAPPluginCall) {
-        guard let device = AVCaptureDevice.default(for: AVMediaType.video) else { return }
-        guard device.hasTorch else { return }
-        guard device.isTorchAvailable else { return }
-
-        if (device.torchMode == .on) {
+        guard let device = AVCaptureDevice.default(for: .video),
+              device.hasTorch, device.isTorchAvailable else { return }
+        if device.torchMode == .on {
             self.disableTorch(call)
         } else {
             self.enableTorch(call)
@@ -580,13 +549,20 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
     }
 
     @objc func getTorchState(_ call: CAPPluginCall) {
-        guard let device = AVCaptureDevice.default(for: AVMediaType.video) else { return }
-
+        guard let device = AVCaptureDevice.default(for: .video) else { return }
         var result = PluginCallResultData()
-
-        result["isEnabled"] = device.torchMode == .on
-
+        result["isEnabled"] = (device.torchMode == .on)
         call.resolve(result)
+    }
+
+    // MARK: - Foto-opname
+
+    // Nieuwe compressImageData functie met schalen
+    private func compressImageData(_ data: Data, quality: CGFloat) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let maxSize = CGSize(width: 393, height: 393) // Pas de grootte aan indien nodig
+        let scaledImage = image.scaled(to: maxSize)
+        return scaledImage.jpegData(compressionQuality: quality)
     }
 
     @objc func capturePhoto(_ call: CAPPluginCall) {
@@ -600,50 +576,45 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            do {
-                // 1. Hergebruik de bestaande capture sessie indien mogelijk
-                if self.captureSession == nil {
-                    self.captureSession = AVCaptureSession()
-                    self.captureSession?.sessionPreset = .photo
-                    
-                    // Voeg input toe aan de sessie
+            // Initialiseer de foto-sessie éénmalig
+            if self.photoCaptureSession == nil {
+                self.photoCaptureSession = AVCaptureSession()
+                self.photoCaptureSession?.sessionPreset = .medium // Lagere resolutie
+                
+                do {
                     guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
                         call.reject("Camera unavailable")
                         return
                     }
                     
                     let input = try AVCaptureDeviceInput(device: camera)
-                    guard self.captureSession!.canAddInput(input) else {
+                    guard self.photoCaptureSession!.canAddInput(input) else {
                         call.reject("Cannot add input")
                         return
                     }
-                    self.captureSession!.addInput(input)
-                }
-                
-                // 2. Voeg output toe aan de sessie
-                if self.photoOutput == nil {
+                    self.photoCaptureSession!.addInput(input)
+                    
                     self.photoOutput = AVCapturePhotoOutput()
-                    guard self.captureSession!.canAddOutput(self.photoOutput!) else {
+                    guard self.photoCaptureSession!.canAddOutput(self.photoOutput!) else {
                         call.reject("Cannot add output")
                         return
                     }
-                    self.captureSession!.addOutput(self.photoOutput!)
+                    self.photoCaptureSession!.addOutput(self.photoOutput!)
+                } catch {
+                    call.reject("Camera setup error: \(error.localizedDescription)")
+                    return
                 }
-                
-                // 3. Start de sessie als deze nog niet actief is
-                if !self.captureSession!.isRunning {
-                    self.captureSession!.startRunning()
-                }
-                
-                // 4. Capture de foto met compressie-instellingen
-                let settings = AVCapturePhotoSettings()
-                settings.isHighResolutionPhotoEnabled = false // Schakel hoge resolutie uit voor snellere verwerking
-                settings.isAutoStillImageStabilizationEnabled = true
-                
-                self.photoOutput!.capturePhoto(with: settings, delegate: self)
-            } catch {
-                call.reject("Camera setup error: \(error.localizedDescription)")
             }
+            
+            if !self.photoCaptureSession!.isRunning {
+                self.photoCaptureSession!.startRunning()
+            }
+            
+            let settings = AVCapturePhotoSettings()
+            settings.isHighResolutionPhotoEnabled = false
+            settings.isAutoStillImageStabilizationEnabled = true
+            
+            self.photoOutput?.capturePhoto(with: settings, delegate: self)
         }
     }
 
@@ -660,35 +631,30 @@ public class BarcodeScanner: CAPPlugin, AVCaptureMetadataOutputObjectsDelegate, 
             return
         }
         
-        // Comprimeer de afbeelding voordat deze wordt geconverteerd naar base64
-        guard let compressedImageData = compressImageData(imageData, quality: 0.7) else {
-            savedCall?.reject("Failed to compress image")
-            cleanupPhotoCapture()
-            return
-        }
-        
-        // Converteer de gecomprimeerde afbeelding naar base64
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
+            
+            guard let compressedImageData = self.compressImageData(imageData, quality: 0.1) else {
+                DispatchQueue.main.async {
+                    self.savedCall?.reject("Failed to compress image")
+                    self.cleanupPhotoCapture()
+                }
+                return
+            }
+            
             let base64String = compressedImageData.base64EncodedString()
+            
             DispatchQueue.main.async {
                 self.savedCall?.resolve(["base64Photo": base64String])
                 self.cleanupPhotoCapture()
             }
         }
     }
-    
-    private func compressImageData(_ data: Data, quality: CGFloat) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
-        return image.jpegData(compressionQuality: quality)
-    }
 
     private func cleanupPhotoCapture() {
-        // Stop de sessie alleen als deze niet meer nodig is
-        if self.photoCaptureSession != nil && self.captureSession == nil {
+        // Stop de sessie indien deze nog actief is
+        if self.photoCaptureSession?.isRunning == true {
             self.photoCaptureSession?.stopRunning()
         }
-        self.photoCaptureSession = nil
-        self.photoOutput = nil
     }
 }
